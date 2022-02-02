@@ -12,8 +12,7 @@ REFRESH_RATE = int(config['REFRESH_RATE'])
 ADMIN_PANEL_URL = config['ADMIN_PANEL_URL'] + '/userRpm/StatusRpm.htm'
 ADMIN_PANEL_USERNAME = config['ADMIN_PANEL_USERNAME']
 ADMIN_PANEL_PASSWORD = config['ADMIN_PANEL_PASSWORD']
-
-mysql_config = {
+MYSQL_CONFIG = {
     'user': config['MYSQL_USER'],
     'password': config['MYSQL_PASSWORD'],
     'host': config['MYSQL_HOST'],
@@ -26,22 +25,18 @@ traffic_stats = {
     'previous_received_bytes': 0,
     'latest_received_bytes': 0,
     'previous_sent_bytes': 0,
-    'latest_sent_bytes': 0
+    'latest_sent_bytes': 0,
+    'bps_received_rate': 0,
+    'bps_sent_rate': 0
 }
 
 
 def main() -> None:
     while True:
-        latest_traffic_stats = get_latest_traffic_stats()
-        if update_straffic_stats(latest_traffic_stats):
-            bps_received_rate = get_bps_rate_received()
-            bps_sent_rate = get_bps_rate_sent()
-
-            save_to_database(bps_received_rate, bps_sent_rate)
-            print(f'Received: {bps_received_rate} - Sent: {bps_sent_rate}')
-
+        update_traffic_stats()
+        save_to_database()
+        print(f"Received: {traffic_stats['bps_received_rate']} - Sent: {traffic_stats['bps_sent_rate']}")
         time.sleep(REFRESH_RATE)
-
 
 def get_latest_traffic_stats() -> Dict[str, int]:
     res = requests.get(ADMIN_PANEL_URL, auth=requests.auth.HTTPBasicAuth(ADMIN_PANEL_USERNAME, ADMIN_PANEL_PASSWORD))
@@ -55,19 +50,22 @@ def get_latest_traffic_stats() -> Dict[str, int]:
     
     raise Exception('Unable to find "statistList" variable')
 
-# Return False if the "previous" values are 0 (first script execution) or 
+# Update BPS if the "previous" values are 0 (first script execution) or 
 # if the "previous" values are greater than "latest" values (AP reboot)
-def update_straffic_stats(latest_traffic_stats) -> bool:
+def update_traffic_stats() -> None:
+    latest_traffic_stats = get_latest_traffic_stats()
+
     traffic_stats['previous_received_bytes'] = traffic_stats['latest_received_bytes']
     traffic_stats['previous_sent_bytes'] = traffic_stats['latest_sent_bytes']
     traffic_stats['latest_received_bytes'] = latest_traffic_stats['received_bytes']
     traffic_stats['latest_sent_bytes'] = latest_traffic_stats['sent_bytes']
 
-    return not ((traffic_stats['previous_received_bytes'] == 0 
+    if not ((traffic_stats['previous_received_bytes'] == 0 
                 and traffic_stats['previous_sent_bytes'] == 0) or (
                     traffic_stats['previous_received_bytes'] > traffic_stats['latest_received_bytes'] 
-                    and traffic_stats['previous_sent_bytes'] > traffic_stats['latest_sent_bytes']))
-
+                    and traffic_stats['previous_sent_bytes'] > traffic_stats['latest_sent_bytes'])):
+        traffic_stats['bps_received_rate'] = get_bps_rate_received()
+        traffic_stats['bps_sent_rate'] = get_bps_rate_sent()
 
 
 def get_bps_rate_received() -> int:
@@ -78,12 +76,12 @@ def get_bps_rate_sent() -> int:
     delta = traffic_stats['latest_sent_bytes'] - traffic_stats['previous_sent_bytes']
     return delta / REFRESH_RATE * 8
 
-def save_to_database(bps_received, bps_sent) -> None:
-    conn = mysql.connector.connect(**mysql_config)
+def save_to_database() -> None:
+    conn = mysql.connector.connect(**MYSQL_CONFIG)
     cursor = conn.cursor()
 
     query = "INSERT INTO wifi_traffic_stats (datetime, bps_received, bps_sent) VALUES (%s, %s, %s)"
-    values = (datetime.now(), bps_received, bps_sent)
+    values = (datetime.now(), traffic_stats['bps_received_rate'], traffic_stats['bps_sent_rate'])
     cursor.execute(query, values)
 
     conn.commit()
