@@ -8,10 +8,10 @@ import mysql.connector
 
 config = dotenv_values('.env')
 
-USERNAME = config['ADMIN_PANEL_USERNAME']
-PASSWORD = config['ADMIN_PANEL_PASSWORD']
-URL = config['ADMIN_PANEL_URL'] + '/userRpm/StatusRpm.htm'
-REFRESH = int(config['REFRESH'])
+REFRESH_RATE = int(config['REFRESH_RATE'])
+ADMIN_PANEL_URL = config['ADMIN_PANEL_URL'] + '/userRpm/StatusRpm.htm'
+ADMIN_PANEL_USERNAME = config['ADMIN_PANEL_USERNAME']
+ADMIN_PANEL_PASSWORD = config['ADMIN_PANEL_PASSWORD']
 
 mysql_config = {
     'user': config['MYSQL_USER'],
@@ -40,11 +40,11 @@ def main() -> None:
             save_to_database(bps_received_rate, bps_sent_rate)
             print(f'Received: {bps_received_rate} - Sent: {bps_sent_rate}')
 
-        time.sleep(REFRESH)
+        time.sleep(REFRESH_RATE)
 
 
 def get_latest_traffic_stats() -> Dict[str, int]:
-    res = requests.get(URL, auth=requests.auth.HTTPBasicAuth(USERNAME, PASSWORD))
+    res = requests.get(ADMIN_PANEL_URL, auth=requests.auth.HTTPBasicAuth(ADMIN_PANEL_USERNAME, ADMIN_PANEL_PASSWORD))
     res.raise_for_status()
 
     soup = BeautifulSoup(res.text, features="html.parser")
@@ -72,11 +72,11 @@ def update_straffic_stats(latest_traffic_stats) -> bool:
 
 def get_bps_rate_received() -> int:
     delta = traffic_stats['latest_received_bytes'] - traffic_stats['previous_received_bytes']
-    return delta / REFRESH * 8
+    return delta / REFRESH_RATE * 8
 
 def get_bps_rate_sent() -> int:
     delta = traffic_stats['latest_sent_bytes'] - traffic_stats['previous_sent_bytes']
-    return delta / REFRESH * 8
+    return delta / REFRESH_RATE * 8
 
 def save_to_database(bps_received, bps_sent) -> None:
     conn = mysql.connector.connect(**mysql_config)

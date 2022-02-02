@@ -4,7 +4,7 @@ Get and estimate throughput using the total bytes received and sent information 
 ## Configuration and run
 - Create `.env` file with:
 ```dotenv
-REFRESH=60 # In seconds
+REFRESH_RATE=60 # In seconds
 
 ADMIN_PANEL_URL="http://192.168.1.254"
 ADMIN_PANEL_USERNAME=username
